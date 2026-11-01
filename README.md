@@ -46,8 +46,43 @@ redirection lecture-écriture ou un routage en lecture seule renvoie le client v
 noms : depuis SSMS sur votre poste, il échoue. Ces démonstrations se jouent avec le
 `sqlcmd` d'un conteneur (`docker exec -it hadrlab3 /opt/mssql-tools18/bin/sqlcmd -C -S hadrlab2 -U sa ...`).
 
-Arrêter le labo : `docker compose stop` ; le reprendre : `docker compose up -d`. Le
-supprimer avec ses bases : `docker compose down -v`.
+## Arrêter et relancer le labo
+
+    ./setup/stop.sh                 # avec Podman : ENGINE=podman ./setup/stop.sh
+    docker compose up -d --wait     # avec Podman : podman compose up -d --wait
+    ./setup/test-lab.sh
+
+N'arrêtez pas le labo par `docker compose stop` ni `docker stop` : le premier processus de
+l'image ne transmet pas le signal d'arrêt à SQL Server, et le moteur de conteneurs le tue au
+bout de dix secondes. Chaque instance redémarre alors comme après une panne, en rejouant son
+journal. `setup/stop.sh` demande un `SHUTDOWN` à chaque instance, qui écrit ses pages sur
+disque et s'arrête, et le conteneur s'arrête avec elle (sept secondes pour les trois, contre
+trente). L'Agent SQL Server démarre quelques secondes après l'instance : si `test-lab.sh`
+le dit absent juste après la relance, relancez-le un peu plus tard. `./setup/install.sh`
+relance aussi le labo, et le remet dans son état de départ s'il lui manque quelque chose.
+
+Supprimer le labo avec ses bases : `docker compose down -v`.
+
+## Les scripts du cours
+
+`demos/module_NN/` contient les démonstrations de chaque module, `exercises/module_NN/` son
+exercice : un `README.md`, les scripts de départ, un corrigé dans `solution/` et un
+`check.sh`, qui sort en 0 quand l'état demandé est atteint et en 1 sinon, en disant ce qui
+manque. Un script `.sql` dit dans ses premières lignes sur quelle instance il tourne
+(`-- instance: hadrlab2`) ; une scène qui passe d'une instance à l'autre est un script
+`.sh`. `00-setup.sh` prépare le module à partir du labo installé, `99-cleanup.sh` l'y
+ramène. Les objets d'un module ont son préfixe (`m01_`), ceux des exercices le préfixe
+`ex_` ; `PachadataTraining` ne s'écrit jamais.
+
+`./setup/run-scripts.sh` joue tout, module par module (ou ceux qu'on lui nomme :
+`./setup/run-scripts.sh module_01`), et s'arrête à la première erreur. C'est ce que fait
+l'intégration continue du dépôt à chaque envoi.
+
+## Vos mesures
+
+Les démonstrations et les exercices écrivent vos mesures dans `evidence/` (un fichier par
+module), que git ignore et qu'aucun nettoyage ne touche : le dernier module vous fait
+répondre à la direction avec ces chiffres. Voir [`evidence/README.md`](evidence/README.md).
 
 ## La base
 
@@ -78,4 +113,8 @@ not in that state. There is no cluster: the lab's availability groups use
 `CLUSTER_TYPE = NONE`. The instance names only resolve inside the lab network, so
 read-write redirection and read-only routing are demonstrated from a container's
 `sqlcmd`, not from SSMS on the host. User `sa`, lab password `Hadr-2026!lab`; check
-*Trust server certificate* in SSMS. The code is released under the MIT license.
+*Trust server certificate* in SSMS. Stop the lab with `./setup/stop.sh`, which shuts each
+instance down before its container stops (`docker compose stop` kills SQL Server), and start
+it again with `docker compose up -d --wait`. `./setup/run-scripts.sh` runs the demos and the
+exercises of every module and stops at the first error; your measures go to `evidence/`,
+ignored by git and kept for the last module. The code is released under the MIT license.

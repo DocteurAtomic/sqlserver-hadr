@@ -6,10 +6,20 @@ on:
 jobs:
   lab:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v7
       - name: Start the three instances, restore the database, exchange the certificates
         run: ./setup/install.sh
       - name: Check the lab
         run: ./setup/test-lab.sh
+      - name: Run the demos and the exercises, module by module
+        # Each module ends with its 99-cleanup script: the lab is back in its installed state.
+        run: ./setup/run-scripts.sh
+      - name: Stop the lab cleanly, start it again and check it
+        # The Agent starts a few seconds after the instance answers: test-lab.sh is retried.
+        run: |
+          ./setup/stop.sh
+          docker compose up -d --wait
+          for i in $(seq 1 30); do ./setup/test-lab.sh >/dev/null 2>&1 && break; sleep 2; done
+          ./setup/test-lab.sh

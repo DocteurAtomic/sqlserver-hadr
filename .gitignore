@@ -1,1 +1,4 @@
 setup/backup/
+# Your measures, kept from module to module for the last one (see evidence/README.md).
+evidence/*
+!evidence/README.md
