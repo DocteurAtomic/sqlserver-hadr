@@ -43,6 +43,36 @@ if [ -z "$primary" ] || [ "$primary" != "${primary% *}" ]; then
     echo "ag-failover: $ag needs exactly one primary, found: '${primary:-none}'" >&2; exit 1
 fi
 if [ "$primary" = "$target" ]; then echo "ag-failover: $target is already the primary of $ag" >&2; exit 1; fi
+# 0. Every secondary copy caught up and no automatic seeding still running, read on the
+# primary, for 60 seconds at most, before the clock starts. The CI met a copy seeded four
+# seconds before the failover that never reconnected to the new primary (module 11).
+for i in $(seq 1 60); do
+    unsettled=$(sql $primary -h -1 -v AG="$ag" <<'SQL' | tr -d '\r' | grep -v '^ *$' || true
+SET NOCOUNT ON;
+SELECT CONCAT(ar.replica_server_name, N'|', DB_NAME(d.database_id), N'|', d.synchronization_state_desc)
+FROM sys.availability_groups AS g
+JOIN sys.availability_replicas AS ar ON ar.group_id = g.group_id
+JOIN sys.dm_hadr_database_replica_states AS d ON d.replica_id = ar.replica_id
+WHERE g.name = N'$(AG)' AND d.is_local = 0
+  AND (NOT (d.synchronization_state_desc = N'SYNCHRONIZED'
+            OR (ar.availability_mode_desc = N'ASYNCHRONOUS_COMMIT' AND d.synchronization_state_desc = N'SYNCHRONIZING'))
+       -- the last seeding of the copy only: the view keeps the earlier ones, and a failover
+       -- leaves a CHECK_IF_SEEDING_NEEDED row that never completes (measured on the lab)
+       OR (SELECT TOP (1) s.current_state FROM sys.dm_hadr_automatic_seeding AS s
+           WHERE s.ag_remote_replica_id = ar.replica_id AND s.ag_db_id = d.group_database_id
+           ORDER BY s.start_time DESC) NOT IN (N'COMPLETED', N'FAILED', N'CHECK_IF_SEEDING_NEEDED'));
+SQL
+)
+    [ -z "$unsettled" ] && break
+    # An idle database leaves a synchronous copy SYNCHRONIZING until the primary writes log.
+    sql $primary -h -1 -Q "SET NOCOUNT ON; DECLARE @q nvarchar(max) = N'';
+        SELECT @q += N'BEGIN TRY USE ' + QUOTENAME(DB_NAME(database_id)) + N'; CHECKPOINT; END TRY BEGIN CATCH END CATCH; '
+        FROM sys.dm_hadr_database_replica_states WHERE is_local = 1; EXEC (@q);" >/dev/null 2>&1 || true
+    sleep 1
+done
+if [ -n "$unsettled" ]; then
+    echo "ag-failover: copies not caught up on the primary after 60 seconds, nothing done: $unsettled" >&2; exit 1
+fi
 t0=$(date +%s.%N)
 elapsed() { awk -v s=$t0 -v e=$(date +%s.%N) 'BEGIN { printf "%.1f", e - s }'; }
 # 1 and 2, in one batch on the primary. The target can trail the primary by a few log blocks
@@ -88,6 +118,7 @@ for n in $primary $others; do
     echo "$n: SET (ROLE = SECONDARY) (+$(elapsed) s)"
 done
 # 5. Read on the new primary which copies are not caught up; resume those that are suspended.
+forced=""
 for i in $(seq 1 120); do
     late=$(sql $target -h -1 -s '|' -v AG="$ag" <<'SQL' | tr -d '\r' | grep -v '^ *$' || true
 SET NOCOUNT ON;
@@ -108,6 +139,12 @@ SQL
         if [ "$s" = 1 ]; then
             sql $n -Q "ALTER DATABASE [$db] SET HADR RESUME;"
             echo "$n: $db suspended by the failover, SET HADR RESUME (+$(elapsed) s)"
+        elif [ $i -ge 15 ] && [[ " $forced " != *" $l "* ]]; then
+            # Still late after 15 seconds without being suspended on its replica: the copy the
+            # CI met in module 11 stayed so. Its local state is printed, and it gets one RESUME.
+            forced="$forced $l"
+            echo "$n: $db still late, local state: $(sql $n -h -1 -Q "SET NOCOUNT ON; SELECT CONCAT(synchronization_state_desc, N' suspended ', is_suspended, N' ', suspend_reason_desc) FROM sys.dm_hadr_database_replica_states WHERE is_local = 1 AND database_id = DB_ID(N'$db');" 2>&1 | tr -s ' \n' ' ')" >&2
+            sql $n -Q "ALTER DATABASE [$db] SET HADR RESUME;" >&2 || true
         fi
     done
     # An asynchronous copy reports SYNCHRONIZING once the primary writes log: a checkpoint does.
