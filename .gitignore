@@ -4,3 +4,5 @@ evidence/*
 !evidence/README.md
 # The answers of the exercise of module 7, written by exercises/module_07/1-start.sh.
 exercises/module_07/answers.txt
+# The report of the exercise of module 8, written by exercises/module_08/1-start.sh.
+exercises/module_08/report.md
