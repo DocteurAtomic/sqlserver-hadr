@@ -85,3 +85,60 @@ IF DATEDIFF(second, @t0, GETDATE()) >= 60
 PRINT CONCAT(@job, N' on ', @@SERVERNAME, N': disabled');
 SQL
 }
+# Waits until a database of an availability group is caught up on every secondary replica,
+# read on the primary, at most a number of seconds (300 by default): no automatic seeding
+# still going, SYNCHRONIZED on the synchronous replicas, SYNCHRONIZING or SYNCHRONIZED on the
+# asynchronous ones. Exits with 1
+# when the automatic seeding of a replica fails, or when the time runs out, and says which
+# replica is missing. A fifth argument limits the wait to one secondary. Prints one line:
+# the database, the time waited. Added by module 3.
+# Usage:  wait_ag_database hadrlab1 AgPacha PachadataTraining [seconds] [replica]
+wait_ag_database() {
+    local c=$1 ag=$2 db=$3 limit=${4:-300} only=${5:-*}
+    sql "$c" -h -1 -v AG="$ag" DB="$db" LIMIT="$limit" ONLY="$only" <<'SQL'
+SET NOCOUNT ON;
+DECLARE @ag sysname = N'$(AG)', @db sysname = N'$(DB)', @limit int = $(LIMIT), @only sysname = N'$(ONLY)',
+        @t0 datetime2(3) = SYSDATETIME(), @missing nvarchar(400), @failed nvarchar(400),
+        @checkpoint nvarchar(300);
+SET @checkpoint = N'USE ' + QUOTENAME(@db) + N'; CHECKPOINT;';
+WHILE 1 = 1
+BEGIN
+    -- The secondary replicas whose copy of the database is not caught up yet.
+    SELECT @missing = STRING_AGG(CONCAT(ar.replica_server_name, N' (',
+               ISNULL(drs.synchronization_state_desc, N'not joined'), N')'), N', ')
+    FROM sys.availability_groups AS g
+    JOIN sys.availability_replicas AS ar ON ar.group_id = g.group_id
+    LEFT JOIN sys.dm_hadr_database_replica_states AS drs
+           ON drs.replica_id = ar.replica_id AND drs.database_id = DB_ID(@db)
+    WHERE g.name = @ag AND ar.replica_server_name <> @@SERVERNAME
+      AND (@only = N'*' OR ar.replica_server_name = @only)
+      AND (NOT (drs.synchronization_state_desc = N'SYNCHRONIZED'
+                OR (ar.availability_mode_desc = N'ASYNCHRONOUS_COMMIT'
+                    AND drs.synchronization_state_desc = N'SYNCHRONIZING'))
+           -- An asynchronous copy says SYNCHRONIZING before its seeding has finished.
+           OR EXISTS (SELECT * FROM sys.dm_hadr_automatic_seeding AS s
+                      JOIN sys.availability_databases_cluster AS adc ON adc.group_database_id = s.ag_db_id
+                      WHERE adc.database_name = @db AND s.ag_remote_replica_id = ar.replica_id
+                        AND s.current_state NOT IN (N'COMPLETED', N'FAILED')));
+    -- A seeding of this database that failed since the wait began.
+    SELECT @failed = STRING_AGG(CONCAT(ar.replica_server_name, N': ', s.failure_state_desc), N', ')
+    FROM sys.dm_hadr_automatic_seeding AS s
+    JOIN sys.availability_replicas AS ar ON ar.replica_id = s.ag_remote_replica_id
+    JOIN sys.availability_databases_cluster AS adc ON adc.group_database_id = s.ag_db_id
+    WHERE adc.database_name = @db AND s.current_state = N'FAILED'
+      AND (@only = N'*' OR ar.replica_server_name = @only) AND s.start_time >= DATEADD(second, -5, @t0);
+    IF @missing IS NULL OR @failed IS NOT NULL OR DATEDIFF(second, @t0, SYSDATETIME()) >= @limit BREAK;
+    -- The seeding of an asynchronous replica stays in CATCHUP until the primary writes new log:
+    -- a checkpoint writes some.
+    EXEC (@checkpoint);
+    WAITFOR DELAY '00:00:01';
+END;
+IF @failed IS NOT NULL
+    RAISERROR(N'wait_ag_database: the seeding of %s failed on %s', 16, 1, @db, @failed);
+ELSE IF @missing IS NOT NULL
+    RAISERROR(N'wait_ag_database: %s not caught up within %d seconds on %s', 16, 1, @db, @limit, @missing);
+ELSE
+    PRINT CONCAT(@db, N' in ', @ag, N': ', IIF(@only = N'*', N'every secondary', @only), N' caught up, after ',
+                 FORMAT(DATEDIFF(millisecond, @t0, SYSDATETIME()) / 1000.0, N'0.0'), N' s');
+SQL
+}
