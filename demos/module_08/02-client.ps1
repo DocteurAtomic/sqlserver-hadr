@@ -1,14 +1,16 @@
 # ci: skip (Windows cluster of the course, not the containers)
 # Runs on a machine that is not a node of the cluster (DC01 in the videos), in a PowerShell
-# session of a domain user who can write into m08_registrations. Module 8, clips 8.1 and 8.2:
+# session of a domain user who can write into the database. Module 8, clips 8.1 and 8.2, and
+# module 10, clip 10.4 (-Database m10_rolling):
 # the application seen from outside. Every half second, a new connection to the listener
 # (no pooling, so that every attempt resolves the name and connects again), one INSERT, and
 # the name of the instance that answered. A line is printed only when the answer changes,
 # with the UTC time; the end gives the attempts, the failures and the longest time without a
 # successful INSERT.
-# Usage: .\02-client.ps1 -Seconds 120 [-Server PachaSQL] [-MultiSubnetFailover $true]
-param([int]$Seconds = 120, [string]$Server = 'PachaSQL', [bool]$MultiSubnetFailover = $true)
-$cs = "Server=tcp:$Server,1433;Database=m08_registrations;Integrated Security=SSPI;" +
+# Usage: .\02-client.ps1 -Seconds 120 [-Server PachaSQL] [-MultiSubnetFailover $true] [-Database m08_registrations]
+param([int]$Seconds = 120, [string]$Server = 'PachaSQL', [bool]$MultiSubnetFailover = $true,
+      [string]$Database = 'm08_registrations')
+$cs = "Server=tcp:$Server,1433;Database=$Database;Integrated Security=SSPI;" +
       "MultiSubnetFailover=$MultiSubnetFailover;Pooling=False;Connect Timeout=5"
 $end = (Get-Date).AddSeconds($Seconds)
 $seq = 0; $failed = 0; $last = ''; $lastOk = $null; $gap = [TimeSpan]::Zero; $gapFrom = $null
