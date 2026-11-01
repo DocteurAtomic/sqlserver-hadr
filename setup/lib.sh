@@ -10,6 +10,32 @@ sql() {  # instance, then sqlcmd arguments
     local c=$1; shift
     $engine exec -i "$c" /opt/mssql-tools18/bin/sqlcmd -S 127.0.0.1 -U sa -C -b -I -W "$@"
 }
+# Joins a secondary to a group created on the primary and lets it create the databases. A
+# group of the same name dropped a moment before can still be leaving the instance: the JOIN
+# then fails with Msg 41180 ("the availability group is being dropped"), which the first
+# Docker run of the CI met in module 4, right after the cleanup of module 3. The JOIN is
+# tried again every 2 seconds on that error only, for 60 seconds at most.
+# Usage:  join_ag hadrlab2 AgPacha
+join_ag() {
+    local c=$1 ag=$2 out i
+    for i in $(seq 1 30); do
+        if out=$(sql "$c" -h -1 2>&1 <<SQL
+SET NOCOUNT ON;
+ALTER AVAILABILITY GROUP $ag JOIN WITH (CLUSTER_TYPE = NONE);
+ALTER AVAILABILITY GROUP $ag GRANT CREATE ANY DATABASE;
+SQL
+        ); then
+            [ -z "$out" ] || echo "$out"
+            return 0
+        fi
+        case $out in
+            *"Msg 41180,"*) sleep 2 ;;
+            *) echo "$out" >&2; return 1 ;;
+        esac
+    done
+    echo "$out" >&2
+    return 1
+}
 # Runs a SQL Server Agent job and waits for it to finish, at most a number of seconds (120 by
 # default); exits with 1 when the job fails or does not finish in time. When the job is already
 # running, it waits for that run to finish first; when the schedule starts it at the same

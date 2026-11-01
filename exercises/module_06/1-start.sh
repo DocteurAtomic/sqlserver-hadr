@@ -73,8 +73,7 @@ REPLICA ON
                       FAILOVER_MODE = MANUAL, SEEDING_MODE = AUTOMATIC);
 GO
 SQL
-sql hadrlab2 -h -1 -Q "SET NOCOUNT ON; ALTER AVAILABILITY GROUP AgBascule JOIN WITH (CLUSTER_TYPE = NONE);
-ALTER AVAILABILITY GROUP AgBascule GRANT CREATE ANY DATABASE;"
+join_ag hadrlab2 AgBascule
 wait_ag_database hadrlab1 AgBascule ex_bascule 300
 sql hadrlab1 -Q "SET NOCOUNT ON;
 INSERT ex_bascule.dbo.Registration (batch, email)

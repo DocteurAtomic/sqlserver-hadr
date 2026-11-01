@@ -31,11 +31,7 @@ REPLICA ON
                       SEEDING_MODE = AUTOMATIC);
 SQL
 for n in hadrlab2 hadrlab3; do
-    sql $n -h -1 <<SQL
-SET NOCOUNT ON;
-ALTER AVAILABILITY GROUP $ag JOIN WITH (CLUSTER_TYPE = NONE);
-ALTER AVAILABILITY GROUP $ag GRANT CREATE ANY DATABASE;
-SQL
+    join_ag $n "$ag"
 done
 for db in "$@"; do
     wait_ag_database hadrlab1 "$ag" "$db" 300
