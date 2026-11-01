@@ -23,3 +23,25 @@ jobs:
           docker compose up -d --wait
           for i in $(seq 1 30); do ./setup/test-lab.sh >/dev/null 2>&1 && break; sleep 2; done
           ./setup/test-lab.sh
+      - name: Show the state of the lab after a failure
+        if: failure()
+        run: |
+          df -h / /var/lib/docker || true
+          free -m
+          docker stats --no-stream || true
+          . setup/lib.sh
+          for n in $nodes; do
+            echo "== $n"
+            sql $n -W -s '|' <<'SQL' || true
+          SET NOCOUNT ON;
+          SELECT name, state_desc, recovery_model_desc FROM sys.databases WHERE database_id > 4;
+          SELECT DB_NAME(database_id) AS db, synchronization_state_desc, synchronization_health_desc,
+                 database_state_desc, suspend_reason_desc FROM sys.dm_hadr_database_replica_states;
+          SELECT TOP (8) s.start_time, d.database_name, s.current_state, s.failure_state_desc,
+                 s.error_code, s.number_of_attempts
+          FROM sys.dm_hadr_automatic_seeding AS s
+          LEFT JOIN sys.availability_databases_cluster AS d ON d.group_database_id = s.ag_db_id
+          ORDER BY s.start_time DESC;
+          SQL
+            docker exec $n tail -n 60 /var/opt/mssql/log/errorlog || true
+          done
