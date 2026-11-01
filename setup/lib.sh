@@ -43,6 +43,22 @@ SQL
 # outcome, its duration. Added by module 2 for the log shipping jobs.
 # Usage:  run_job hadrlab2 LSCopy_m02_registration [seconds]
 run_job() {
+    # sp_start_job sends its error 22022 (the schedule started the job in the same second)
+    # from an extended procedure, which TRY...CATCH does not catch: sqlcmd prints it as
+    # "HResult 0x5606" and, with -b, exits with 1 although the run waited for has succeeded.
+    # Seen once in the CI. That case alone is turned back into a success, and the two lines
+    # of the message are dropped.
+    local out rc
+    if out=$(_run_job "$@" 2>&1); then rc=0; else rc=$?; fi
+    if [ $rc -ne 0 ] && printf '%s\n' "$out" | grep -q '^HResult 0x5606,' \
+       && ! printf '%s\n' "$out" | grep -E '^(Msg|HResult) ' | grep -vq '^HResult 0x5606,' \
+       && printf '%s\n' "$out" | grep -q ': succeeded in '; then
+        rc=0
+    fi
+    printf '%s\n' "$out" | grep -v -e '^HResult 0x5606,' -e 'refused because the job is already running' || true
+    return $rc
+}
+_run_job() {
     local c=$1 job=$2 limit=${3:-120}
     sql "$c" -h -1 -v JOB="$job" LIMIT="$limit" <<'SQL'
 SET NOCOUNT ON;
