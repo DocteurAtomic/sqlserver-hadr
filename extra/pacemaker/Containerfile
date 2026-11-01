@@ -1,0 +1,23 @@
+# A node of the Pacemaker lab: Ubuntu 24.04 with systemd as its first process, SQL Server
+# 2025 CU7 (17.0.4065.4, the build of the course lab) and its high availability package
+# mssql-server-ha of the same build, Pacemaker, Corosync and pcs from Ubuntu.
+# SQL Server is set up when the node starts (lab.sh runs mssql-conf setup), so that
+# @@SERVERNAME takes the name of the container.
+# Ubuntu 24.04 is supported by SQL Server 2025 from its CU1 (Learn, "Configure repositories
+# for installing and upgrading SQL Server 2025 on Linux").
+FROM docker.io/library/ubuntu:24.04
+ARG MSSQL_VERSION=17.0.4065.4-1
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      systemd systemd-sysv curl gnupg ca-certificates iproute2 iputils-ping procps \
+      pacemaker pacemaker-cli-utils corosync pcs resource-agents-base fence-agents-base \
+ && curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor -o /usr/share/keyrings/microsoft.gpg \
+ && echo "deb [arch=amd64 signed-by=/usr/share/keyrings/microsoft.gpg] https://packages.microsoft.com/ubuntu/24.04/mssql-server-2025 noble main" > /etc/apt/sources.list.d/mssql.list \
+ && echo "deb [arch=amd64 signed-by=/usr/share/keyrings/microsoft.gpg] https://packages.microsoft.com/ubuntu/24.04/prod noble main" > /etc/apt/sources.list.d/prod.list \
+ && apt-get update && ACCEPT_EULA=Y apt-get install -y --no-install-recommends \
+      mssql-server=$MSSQL_VERSION mssql-server-ha=$MSSQL_VERSION mssql-tools18 unixodbc \
+ && apt-get clean && rm -rf /var/lib/apt/lists/*
+# pcsd must start with the node; the cluster itself is created by pacemaker.sh
+RUN systemctl enable pcsd
+STOPSIGNAL SIGRTMIN+3
+CMD ["/sbin/init"]

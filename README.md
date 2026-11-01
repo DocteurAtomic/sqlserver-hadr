@@ -78,6 +78,13 @@ ramène. Les objets d'un module ont son préfixe (`m01_`), ceux des exercices le
 `./setup/run-scripts.sh module_01`), et s'arrête à la première erreur. C'est ce que fait
 l'intégration continue du dépôt à chaque envoi.
 
+## Le labo Pacemaker
+
+Le module 13 montre un groupe de disponibilité sous Pacemaker, le gestionnaire de cluster de
+Linux. Son labo est à part, dans [`extra/pacemaker`](extra/pacemaker/README.md) : trois
+nœuds Ubuntu où systemd tourne en premier processus, ce qui demande Podman sous Linux. Il
+est facultatif, le reste du cours ne s'en sert pas, et l'intégration continue ne le joue pas.
+
 ## Vos mesures
 
 Les démonstrations et les exercices écrivent vos mesures dans `evidence/` (un fichier par
@@ -117,4 +124,5 @@ read-write redirection and read-only routing are demonstrated from a container's
 instance down before its container stops (`docker compose stop` kills SQL Server), and start
 it again with `docker compose up -d --wait`. `./setup/run-scripts.sh` runs the demos and the
 exercises of every module and stops at the first error; your measures go to `evidence/`,
-ignored by git and kept for the last module. The code is released under the MIT license.
+ignored by git and kept for the last module. The optional Pacemaker lab of module 13 is in
+`extra/pacemaker` (Podman on Linux only, not run by the CI). The code is released under the MIT license.
