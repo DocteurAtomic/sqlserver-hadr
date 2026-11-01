@@ -45,8 +45,12 @@ fi
 if [ "$primary" = "$target" ]; then echo "ag-failover: $target is already the primary of $ag" >&2; exit 1; fi
 t0=$(date +%s.%N)
 elapsed() { awk -v s=$t0 -v e=$(date +%s.%N) 'BEGIN { printf "%.1f", e - s }'; }
-# 1 and 2, in one batch on the primary.
-required=$(sql $primary -h -1 -v AG="$ag" TARGET="$target" <<'SQL' | tr -d '[:space:]'
+# 1 and 2, in one batch on the primary. The target can trail the primary by a few log blocks
+# for a moment, right after a failover or a listener change written on the primary: the check
+# is tried again every second for 10 seconds on that refusal only. sqlcmd prints its errors on
+# stdout, so the refusal is in the output, printed on stderr when it stays.
+for i in $(seq 1 10); do
+    if out=$(sql $primary -h -1 -v AG="$ag" TARGET="$target" 2>&1 <<'SQL'
 SET NOCOUNT ON;
 DECLARE @ag sysname = N'$(AG)', @target sysname = N'$(TARGET)', @bad nvarchar(400), @q nvarchar(max);
 SELECT @bad = STRING_AGG(CONCAT(DB_NAME(d.database_id), N' ', d.synchronization_state_desc,
@@ -69,7 +73,13 @@ SET @q = N'ALTER AVAILABILITY GROUP ' + QUOTENAME(@ag) + N' SET (REQUIRED_SYNCHR
        + N'ALTER AVAILABILITY GROUP ' + QUOTENAME(@ag) + N' OFFLINE;';
 EXEC (@q);
 SQL
-)
+    ); then break; fi
+    case $out in
+        *"is not a synchronous secondary caught up"*) [ $i -lt 10 ] && sleep 1 && continue ;;
+    esac
+    echo "$out" >&2; exit 1
+done
+required=$(printf '%s' "$out" | tr -d '[:space:]')
 echo "$primary: $target checked, required synchronized secondaries 1, $ag OFFLINE (+$(elapsed) s)"
 sql $target -Q "ALTER AVAILABILITY GROUP [$ag] FORCE_FAILOVER_ALLOW_DATA_LOSS;"
 echo "$target: FORCE_FAILOVER_ALLOW_DATA_LOSS (+$(elapsed) s)"
