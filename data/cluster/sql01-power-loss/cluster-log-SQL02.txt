@@ -1,0 +1,2 @@
+2026/11/01-11:10:03.897 WARN  [NETWORK] Missed 40% of the heart beats with node SQL01
+2026/11/01-11:10:15.898 WARN  [NETWORK] Lost connection to node SQL01

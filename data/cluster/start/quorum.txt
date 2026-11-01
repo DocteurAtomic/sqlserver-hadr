@@ -1,0 +1,5 @@
+# Get-ClusterQuorum, SQL01
+
+Cluster        : cluster
+QuorumResource :
+QuorumType     : Majority

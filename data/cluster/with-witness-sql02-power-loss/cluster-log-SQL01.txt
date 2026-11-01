@@ -1,0 +1,35 @@
+2026/11/01-11:19:51.136 WARN  [NETWORK] Missed 40% of the heart beats with node SQL02
+2026/11/01-11:20:03.138 WARN  [NETWORK] Lost connection to node SQL02
+2026/11/01-11:20:03.900 INFO  [QUORUM] Node 1: quorum resource owner 2 died
+2026/11/01-11:20:03.900 WARN  [QUORUM] Node 1: One off quorum (1)
+2026/11/01-11:20:03.900 INFO  [QUORUM] Node 1: death timer is started at 2026/11/01-11:20:03.885 and expires in 90 seconds
+2026/11/01-11:20:03.910 INFO  [RCM] Issuing Arbitrate(File Share Witness) to RHS.
+2026/11/01-11:20:03.948 WARN  [QUORUM] Node 1: One off quorum (1)
+2026/11/01-11:20:03.948 INFO  [QUORUM] Node 1: death timer is already running, 89 seconds left.
+2026/11/01-11:20:04.948 WARN  [QUORUM] Node 1: One off quorum (1)
+2026/11/01-11:20:04.948 INFO  [QUORUM] Node 1: death timer is already running, 88 seconds left.
+2026/11/01-11:20:05.948 WARN  [QUORUM] Node 1: One off quorum (1)
+2026/11/01-11:20:05.948 INFO  [QUORUM] Node 1: death timer is already running, 87 seconds left.
+2026/11/01-11:20:06.948 WARN  [QUORUM] Node 1: One off quorum (1)
+2026/11/01-11:20:06.948 INFO  [QUORUM] Node 1: death timer is already running, 86 seconds left.
+2026/11/01-11:20:07.948 WARN  [QUORUM] Node 1: One off quorum (1)
+2026/11/01-11:20:07.948 INFO  [QUORUM] Node 1: death timer is already running, 85 seconds left.
+2026/11/01-11:20:08.948 WARN  [QUORUM] Node 1: One off quorum (1)
+2026/11/01-11:20:08.948 INFO  [QUORUM] Node 1: death timer is already running, 84 seconds left.
+2026/11/01-11:20:09.948 WARN  [QUORUM] Node 1: One off quorum (1)
+2026/11/01-11:20:09.948 INFO  [QUORUM] Node 1: death timer is already running, 83 seconds left.
+2026/11/01-11:20:10.948 WARN  [QUORUM] Node 1: One off quorum (1)
+2026/11/01-11:20:10.948 INFO  [QUORUM] Node 1: death timer is already running, 82 seconds left.
+2026/11/01-11:20:11.948 WARN  [QUORUM] Node 1: One off quorum (1)
+2026/11/01-11:20:11.948 INFO  [QUORUM] Node 1: death timer is already running, 81 seconds left.
+2026/11/01-11:20:12.948 WARN  [QUORUM] Node 1: One off quorum (1)
+2026/11/01-11:20:12.948 INFO  [QUORUM] Node 1: death timer is already running, 80 seconds left.
+2026/11/01-11:20:13.948 WARN  [QUORUM] Node 1: One off quorum (1)
+2026/11/01-11:20:13.948 INFO  [QUORUM] Node 1: death timer is already running, 79 seconds left.
+2026/11/01-11:20:14.948 WARN  [QUORUM] Node 1: One off quorum (1)
+2026/11/01-11:20:14.948 INFO  [QUORUM] Node 1: death timer is already running, 78 seconds left.
+2026/11/01-11:20:15.948 WARN  [QUORUM] Node 1: One off quorum (1)
+2026/11/01-11:20:15.948 INFO  [QUORUM] Node 1: death timer is already running, 77 seconds left.
+2026/11/01-11:20:16.948 WARN  [QUORUM] Node 1: One off quorum (1)
+2026/11/01-11:20:16.948 INFO  [QUORUM] Node 1: death timer is already running, 76 seconds left.
+2026/11/01-11:20:17.617 INFO  [QUORUM] Node 1: stopping death timer

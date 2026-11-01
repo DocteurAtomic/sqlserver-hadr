@@ -1,0 +1,6 @@
+# Get-ClusterNode, SQL01
+
+Id Name  State NodeWeight DynamicWeight
+-- ----  ----- ---------- -------------
+1  SQL01    Up          1             1
+2  SQL02  Down          1             0

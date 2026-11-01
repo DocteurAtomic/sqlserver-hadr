@@ -1,0 +1,10 @@
+11:19:32.1 clussvc=Running | SQL01=Up/1/1 SQL02=Up/1/1 | Cluster Group@SQL02=Online Pacha@SQL01=Online | sql: NORMAL_QUORUM PRIMARY HEALTHY read:39
+11:19:43.2 clussvc=Running | SQL01=Up/1/1 SQL02=Down/1/1 | Cluster Group@SQL01=Pending Pacha@SQL01=Online | sql: Timeout expired
+11:20:15.9 clussvc=Running | SQL01=Up/1/1 SQL02=Down/1/1 | Cluster Group@SQL01=Pending Pacha@SQL01=Online | sql: NORMAL_QUORUM PRIMARY HEALTHY read:39
+11:20:21.9 clussvc=Running | SQL01=Up/1/1 SQL02=Down/1/1 | Cluster Group@SQL01=Online Pacha@SQL01=Online | sql: NORMAL_QUORUM PRIMARY HEALTHY read:39
+11:21:32.1 end of poll
+11:22:23.0 clussvc=Running | SQL01=Up/1/1 SQL02=Down/1/1 | Cluster Group@SQL01=Online Pacha@SQL01=Online | sql: NORMAL_QUORUM PRIMARY HEALTHY SQL02:NOT SYNCHRONIZING,SQL01:SYNCHRONIZED read:39
+11:22:47.8 clussvc=Running | SQL01=Up/1/1 SQL02=Joining/1/1 | Cluster Group@SQL01=Online Pacha@SQL01=Online | sql: NORMAL_QUORUM PRIMARY HEALTHY SQL02:NOT SYNCHRONIZING,SQL01:SYNCHRONIZED read:39
+11:22:51.9 clussvc=Running | SQL01=Up/1/1 SQL02=Up/1/1 | Cluster Group@SQL01=Online Pacha@SQL01=Online | sql: NORMAL_QUORUM PRIMARY HEALTHY SQL02:NOT SYNCHRONIZING,SQL01:SYNCHRONIZED read:39
+11:25:00.0 clussvc=Running | SQL01=Up/1/1 SQL02=Up/1/1 | Cluster Group@SQL01=Online Pacha@SQL01=Online | sql: NORMAL_QUORUM PRIMARY HEALTHY SQL02:SYNCHRONIZED,SQL01:SYNCHRONIZED read:39
+11:27:23.0 end of poll

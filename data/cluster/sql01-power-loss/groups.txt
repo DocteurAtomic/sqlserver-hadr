@@ -1,0 +1,15 @@
+# Get-ClusterGroup, SQL02
+
+Name              OwnerNode   State
+----              ---------   -----
+Available Storage SQL02     Offline
+Cluster Group     SQL02      Online
+Pacha             SQL02      Online
+
+Name                 ResourceType                  OwnerGroup    OwnerNode  State
+----                 ------------                  ----------    ---------  -----
+Cluster IP Address   IP Address                    Cluster Group SQL02     Online
+Cluster Name         Network Name                  Cluster Group SQL02     Online
+Pacha                SQL Server Availability Group Pacha         SQL02     Online
+Pacha_192.168.200.31 IP Address                    Pacha         SQL02     Online
+Pacha_PachaSQL       Network Name                  Pacha         SQL02     Online

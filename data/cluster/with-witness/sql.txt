@@ -1,0 +1,13 @@
+-- sys.dm_hadr_cluster_members, sys.dm_hadr_cluster, replicas of Pacha, on SQL01
+member_name member_type_desc member_state_desc number_of_quorum_votes number_of_current_votes
+----------- ---------------- ----------------- ---------------------- -----------------------
+SQL01 CLUSTER_NODE UP 1 1
+SQL02 CLUSTER_NODE UP 1 1
+File Share Witness FILE_SHARE_WITNESS UP 1 1
+cluster_name quorum_type_desc quorum_state_desc
+------------ ---------------- -----------------
+cluster NODE_AND_FILE_SHARE_MAJORITY NORMAL_QUORUM
+replica_server_name role_desc connected_state_desc synchronization_health_desc
+------------------- --------- -------------------- ---------------------------
+SQL01 PRIMARY CONNECTED HEALTHY
+SQL02 SECONDARY CONNECTED HEALTHY

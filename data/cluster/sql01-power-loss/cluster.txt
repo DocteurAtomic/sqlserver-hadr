@@ -1,0 +1,8 @@
+# Get-Cluster, SQL02, 2026-11-01 11:12:30 UTC
+
+Name                      : cluster
+DynamicQuorum             : 1
+WitnessDynamicWeight      : 0
+LowerQuorumPriorityNodeId : 0
+SameSubnetDelay           : 1000
+SameSubnetThreshold       : 20

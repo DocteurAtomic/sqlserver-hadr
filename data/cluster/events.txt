@@ -1,0 +1,13 @@
+# Actions on the cluster nodes, 2026-11-01, UTC, read with `date -u` on the workstation that
+# drove the hypervisor, just before each command. A power off is `virsh destroy` (the virtual
+# machine stops at once, as on a power cut); a clean shutdown is `Stop-Computer -Force` inside
+# Windows. The clocks of the workstation and of the nodes agree within 0.1 s: the last
+# heartbeat SQL01 received from SQL02 is at 10:53:52.780 in its cluster log.
+10:53:52.74 power-off SQL02
+10:56:29.17 power-on SQL02
+11:03:04.09 shutdown SQL02
+11:05:54.88 power-on SQL02
+11:09:54.97 power-off SQL01
+11:12:39.24 power-on SQL01
+11:19:43.04 power-off SQL02
+11:22:26.86 power-on SQL02
