@@ -1,0 +1,15 @@
+name: check
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+jobs:
+  lab:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - name: Start the three instances, restore the database, exchange the certificates
+        run: ./setup/install.sh
+      - name: Check the lab
+        run: ./setup/test-lab.sh

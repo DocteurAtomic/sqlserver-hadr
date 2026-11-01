@@ -1,0 +1,4 @@
+# Shell scripts run inside Linux containers and under Git Bash: keep them LF on Windows.
+*.sh text eol=lf
+*.sql text eol=lf
+compose.yaml text eol=lf

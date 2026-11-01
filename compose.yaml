@@ -1,0 +1,71 @@
+# Lab of the course: three SQL Server 2025 Developer instances for availability groups
+# without a cluster (CLUSTER_TYPE = NONE) and log shipping.
+# Start it, restore PachadataTraining and exchange the endpoint certificates with:
+#   ./setup/install.sh
+# No privilege, no systemd, no added capability: it runs under Docker Desktop (Windows,
+# macOS) as under Podman. Each instance is bounded to 2 GB; the lab needs about 6 GB.
+# The volume "share" is mounted on the three instances at /var/opt/mssql/share: it holds
+# the backup, the public certificates of the endpoints and the log shipping files, in
+# place of the network share a Windows setup would use.
+x-sql: &sql
+  image: mcr.microsoft.com/mssql/server:2025-CU7-ubuntu-24.04
+  environment: &sqlenv
+    ACCEPT_EULA: "Y"
+    MSSQL_PID: Developer
+    MSSQL_AGENT_ENABLED: "true"
+    MSSQL_ENABLE_HADR: "1"
+    MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:-Hadr-2026!lab}
+    SQLCMDPASSWORD: ${MSSQL_SA_PASSWORD:-Hadr-2026!lab}
+  mem_limit: 2g
+  cpus: 2
+  healthcheck:
+    test: ["CMD", "/opt/mssql-tools18/bin/sqlcmd", "-S", "127.0.0.1", "-U", "sa", "-C", "-Q", "SELECT 1"]
+    interval: 5s
+    timeout: 5s
+    retries: 30
+    start_period: 10s
+  networks:
+    - lab
+
+services:
+  hadrlab1:
+    <<: *sql
+    container_name: hadrlab1
+    hostname: hadrlab1
+    ports:
+      - "127.0.0.1:${SQLPORT1:-14631}:1433"
+    volumes:
+      - data1:/var/opt/mssql
+      - share:/var/opt/mssql/share
+  hadrlab2:
+    <<: *sql
+    container_name: hadrlab2
+    hostname: hadrlab2
+    ports:
+      - "127.0.0.1:${SQLPORT2:-14632}:1433"
+    volumes:
+      - data2:/var/opt/mssql
+      - share:/var/opt/mssql/share
+  hadrlab3:
+    <<: *sql
+    container_name: hadrlab3
+    hostname: hadrlab3
+    ports:
+      - "127.0.0.1:${SQLPORT3:-14633}:1433"
+    volumes:
+      - data3:/var/opt/mssql
+      - share:/var/opt/mssql/share
+
+networks:
+  lab:
+    name: hadrlab-net
+
+volumes:
+  data1:
+    name: hadrlab-data1
+  data2:
+    name: hadrlab-data2
+  data3:
+    name: hadrlab-data3
+  share:
+    name: hadrlab-share
