@@ -142,3 +142,16 @@ ELSE
                  FORMAT(DATEDIFF(millisecond, @t0, SYSDATETIME()) / 1000.0, N'0.0'), N' s');
 SQL
 }
+# Opens one connection from inside the lab network, with the sqlcmd of a container (the names
+# hadrlab1 to hadrlab3, and a listener, only resolve there: a client on the host would be
+# redirected to a name it cannot resolve), and prints where it landed: the instance, the
+# database and its updateability, or the error the connection got. Added by module 5.
+# Usage:  lands_on <from container> <server> [sqlcmd options]
+#   e.g.  lands_on hadrlab3 hadrlab1 -d m05_reports -K ReadOnly
+lands_on() {
+    local from=$1 server=$2; shift 2
+    $engine exec -i "$from" /opt/mssql-tools18/bin/sqlcmd -C -l 10 -S "$server" -U sa -h -1 -W "$@" \
+        -Q "SET NOCOUNT ON; SELECT CONCAT(@@SERVERNAME, N' ', DB_NAME(), N' ', CONVERT(nvarchar(20), DATABASEPROPERTYEX(DB_NAME(), 'Updateability')))" 2>&1 \
+        | grep -v '^ *$' | tail -1 | sed 's/^Sqlcmd: Error: Microsoft ODBC Driver 18 for SQL Server : //'
+    return 0
+}
