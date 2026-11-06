@@ -14,10 +14,15 @@ sql() {  # instance, then sqlcmd arguments
 # group of the same name dropped a moment before can still be leaving the instance: the JOIN
 # then fails with Msg 41180 ("the availability group is being dropped"), which the first
 # Docker run of the CI met in module 4, right after the cleanup of module 3. The JOIN is
-# tried again every 2 seconds on that error only, for 60 seconds at most.
+# tried again every 2 seconds on that error only, for 60 seconds at most. An attempt that
+# reports Msg 41180 can still have joined: in CI run 42312286999 (module 8, AgRepair, 14
+# seconds after AgBascule was dropped on hadrlab2), the error log shows the JOIN done and the
+# next attempt failed with Msg 41106 ("an availability replica of the specified availability
+# group already exists"). After a 41180, a 41106 therefore means joined: only the GRANT is
+# run again. Each 41180 is shown on stderr.
 # Usage:  join_ag hadrlab2 AgPacha
 join_ag() {
-    local c=$1 ag=$2 out i
+    local c=$1 ag=$2 out i seen41180=0
     for i in $(seq 1 30); do
         if out=$(sql "$c" -h -1 2>&1 <<SQL
 SET NOCOUNT ON;
@@ -29,7 +34,17 @@ SQL
             return 0
         fi
         case $out in
-            *"Msg 41180,"*) sleep 2 ;;
+            *"Msg 41180,"*)
+                seen41180=1
+                echo "join_ag: $c, $ag: Msg 41180, tried again in 2 s: $(echo "$out" | grep -v '^Msg ' | head -1)" >&2
+                sleep 2 ;;
+            *"Msg 41106,"*)
+                if [ $seen41180 -eq 1 ]; then
+                    echo "join_ag: $c, $ag: already joined by the attempt that reported Msg 41180" >&2
+                    sql "$c" -h -1 -Q "SET NOCOUNT ON; ALTER AVAILABILITY GROUP $ag GRANT CREATE ANY DATABASE;"
+                    return
+                fi
+                echo "$out" >&2; return 1 ;;
             *) echo "$out" >&2; return 1 ;;
         esac
     done
