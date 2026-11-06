@@ -238,7 +238,8 @@ reseed_copy() {
     local c=$1 ag=$2 db=$3
     sql "$c" -h -1 -v AG="$ag" DB="$db" <<'SQL'
 SET NOCOUNT ON;
-DECLARE @db sysname = N'$(DB)';
+DECLARE @db sysname = N'$(DB)', @drop nvarchar(300);
+SET @drop = N'DROP DATABASE ' + QUOTENAME(@db);
 IF EXISTS (SELECT * FROM sys.dm_hadr_database_replica_states WHERE database_id = DB_ID(@db) AND is_local = 1)
     PRINT CONCAT(N'reseed_copy: ', @db, N' on ', @@SERVERNAME, N' is joined, left alone');
 ELSE IF EXISTS (SELECT * FROM sys.dm_hadr_automatic_seeding AS s
@@ -250,7 +251,7 @@ BEGIN
     IF DB_ID(@db) IS NOT NULL AND DATABASEPROPERTYEX(@db, 'Status') <> N'RESTORING'
         THROW 50000, N'reseed_copy: the copy is neither joined nor in RESTORING', 1;
     IF DB_ID(@db) IS NOT NULL
-        EXEC (N'DROP DATABASE ' + QUOTENAME(@db));
+        EXEC (@drop);
     ALTER AVAILABILITY GROUP $(AG) GRANT CREATE ANY DATABASE;
     PRINT CONCAT(N'reseed_copy: ', @db, N' on ', @@SERVERNAME, N': copy dropped, seeding started again');
 END;
