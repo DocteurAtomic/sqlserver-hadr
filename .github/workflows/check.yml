@@ -13,6 +13,8 @@ jobs:
         run: ./setup/install.sh
       - name: Check the lab
         run: ./setup/test-lab.sh
+      - name: Check that a stopped automatic seeding is seeded again
+        run: ./setup/test-reseed.sh
       - name: Run the demos and the exercises, module by module
         # Each module ends with its 99-cleanup script: the lab is back in its installed state.
         run: ./setup/run-scripts.sh
@@ -42,6 +44,9 @@ jobs:
           FROM sys.dm_hadr_automatic_seeding AS s
           LEFT JOIN sys.availability_databases_cluster AS d ON d.group_database_id = s.ag_db_id
           ORDER BY s.start_time DESC;
+          SELECT TOP (8) local_database_name, role_desc, internal_state_desc, start_time_utc,
+                 transferred_size_bytes / 1048576 AS transferred_mb, failure_code, failure_message
+          FROM sys.dm_hadr_physical_seeding_stats ORDER BY start_time_utc DESC;
           SQL
             docker exec $n tail -n 60 /var/opt/mssql/log/errorlog || true
           done

@@ -130,18 +130,45 @@ SQL
 # Waits until a database of an availability group is caught up on every secondary replica,
 # read on the primary, at most a number of seconds (300 by default): no automatic seeding
 # still going, SYNCHRONIZED on the synchronous replicas, SYNCHRONIZING or SYNCHRONIZED on the
-# asynchronous ones. Exits with 1
-# when the automatic seeding of a replica fails, or when the time runs out, and says which
-# replica is missing. A fifth argument limits the wait to one secondary. Prints one line:
-# the database, the time waited. Added by module 3.
+# asynchronous ones. A fifth argument limits the wait to one secondary. Prints one line: the
+# database, the time waited. Exits with 1 when the time runs out, and says which replica is
+# missing, after a report of the seedings of the database (seeding_report). Added by module 3.
+# An automatic seeding can stop for good: on a slow CI runner, the connection between the
+# endpoints timed out while two seedings ran at once, the restore of m04_registration on
+# hadrlab2 finished, its join to the group failed (Msg 35250, "the connection to the primary
+# replica is not active"), and SQL Server never tried again, leaving a copy in RESTORING
+# outside the group. Such a copy (not caught up, the last seeding of it finished more than 30
+# seconds ago, no seeding of it going on) is seeded again by reseed_copy, twice at most.
 # Usage:  wait_ag_database hadrlab1 AgPacha PachadataTraining [seconds] [replica]
 wait_ag_database() {
-    local c=$1 ag=$2 db=$3 limit=${4:-300} only=${5:-*}
+    local c=$1 ag=$2 db=$3 limit=${4:-300} only=${5:-*} t0=$SECONDS out left r stuck reseeds=0
+    while :; do
+        left=$(( limit - (SECONDS - t0) ))
+        [ "$left" -gt 0 ] || left=1
+        if out=$(_wait_ag_database "$c" "$ag" "$db" "$left" "$only" 2>&1); then
+            echo "$out"
+            return 0
+        fi
+        stuck=$(printf '%s\n' "$out" | sed -n 's/^stuck: //p')
+        if [ -z "$stuck" ] || [ "$reseeds" -ge 2 ]; then
+            seeding_report "$c" "$db" >&2
+            echo "$out" | grep -v '^stuck: ' >&2
+            return 1
+        fi
+        reseeds=$((reseeds + 1))
+        seeding_report "$c" "$db" >&2
+        for r in $stuck; do
+            reseed_copy "$r" "$ag" "$db" >&2 || return 1
+        done
+    done
+}
+_wait_ag_database() {
+    local c=$1 ag=$2 db=$3 limit=$4 only=$5
     sql "$c" -h -1 -v AG="$ag" DB="$db" LIMIT="$limit" ONLY="$only" <<'SQL'
 SET NOCOUNT ON;
 DECLARE @ag sysname = N'$(AG)', @db sysname = N'$(DB)', @limit int = $(LIMIT), @only sysname = N'$(ONLY)',
-        @t0 datetime2(3) = SYSDATETIME(), @missing nvarchar(400), @failed nvarchar(400),
-        @checkpoint nvarchar(300);
+        @t0 datetime2(3) = SYSDATETIME(), @missing nvarchar(400), @stuck nvarchar(400),
+        @stuck_since datetime2(3), @checkpoint nvarchar(300);
 SET @checkpoint = N'USE ' + QUOTENAME(@db) + N'; CHECKPOINT;';
 WHILE 1 = 1
 BEGIN
@@ -162,27 +189,101 @@ BEGIN
                       JOIN sys.availability_databases_cluster AS adc ON adc.group_database_id = s.ag_db_id
                       WHERE adc.database_name = @db AND s.ag_remote_replica_id = ar.replica_id
                         AND s.current_state NOT IN (N'COMPLETED', N'FAILED')));
-    -- A seeding of this database that failed since the wait began.
-    SELECT @failed = STRING_AGG(CONCAT(ar.replica_server_name, N': ', s.failure_state_desc), N', ')
-    FROM sys.dm_hadr_automatic_seeding AS s
-    JOIN sys.availability_replicas AS ar ON ar.replica_id = s.ag_remote_replica_id
-    JOIN sys.availability_databases_cluster AS adc ON adc.group_database_id = s.ag_db_id
-    WHERE adc.database_name = @db AND s.current_state = N'FAILED'
-      AND (@only = N'*' OR ar.replica_server_name = @only) AND s.start_time >= DATEADD(second, -5, @t0);
-    IF @missing IS NULL OR @failed IS NOT NULL OR DATEDIFF(second, @t0, SYSDATETIME()) >= @limit BREAK;
+    -- The copies whose automatic seeding stopped: not synchronizing, the last seeding of them
+    -- finished more than 30 seconds ago (SQL Server retries a transient failure by itself
+    -- within that time), none going on, and so for 20 seconds in a row (a database just added
+    -- to the group can show an old seeding as its last one, until its own begins).
+    SELECT @stuck = STRING_AGG(ar.replica_server_name, N' ')
+    FROM sys.availability_groups AS g
+    JOIN sys.availability_replicas AS ar ON ar.group_id = g.group_id
+    LEFT JOIN sys.dm_hadr_database_replica_states AS drs
+           ON drs.replica_id = ar.replica_id AND drs.database_id = DB_ID(@db)
+    CROSS APPLY (SELECT TOP (1) s.current_state, ISNULL(s.completion_time, s.start_time) AS ended
+                 FROM sys.dm_hadr_automatic_seeding AS s
+                 JOIN sys.availability_databases_cluster AS adc ON adc.group_database_id = s.ag_db_id
+                 WHERE adc.database_name = @db AND s.ag_remote_replica_id = ar.replica_id
+                 ORDER BY s.start_time DESC) AS last_seeding
+    WHERE g.name = @ag AND ar.replica_server_name <> @@SERVERNAME
+      AND (@only = N'*' OR ar.replica_server_name = @only)
+      AND ar.seeding_mode_desc = N'AUTOMATIC'
+      AND ISNULL(drs.synchronization_state_desc, N'NOT SYNCHRONIZING') = N'NOT SYNCHRONIZING'
+      AND last_seeding.current_state IN (N'COMPLETED', N'FAILED')
+      AND last_seeding.ended < DATEADD(second, -30, GETDATE());
+    SET @stuck_since = IIF(@stuck IS NULL, NULL, ISNULL(@stuck_since, SYSDATETIME()));
+    IF @missing IS NULL OR DATEDIFF(second, @stuck_since, SYSDATETIME()) >= 20
+       OR DATEDIFF(second, @t0, SYSDATETIME()) >= @limit BREAK;
     -- The seeding of an asynchronous replica stays in CATCHUP until the primary writes new log:
     -- a checkpoint writes some.
     EXEC (@checkpoint);
     WAITFOR DELAY '00:00:01';
 END;
-IF @failed IS NOT NULL
-    RAISERROR(N'wait_ag_database: the seeding of %s failed on %s', 16, 1, @db, @failed);
+IF @missing IS NOT NULL AND DATEDIFF(second, @stuck_since, SYSDATETIME()) >= 20
+BEGIN
+    PRINT CONCAT(N'stuck: ', @stuck);
+    RAISERROR(N'wait_ag_database: the seeding of %s stopped on %s', 16, 1, @db, @stuck);
+END
 ELSE IF @missing IS NOT NULL
     RAISERROR(N'wait_ag_database: %s not caught up within %d seconds on %s', 16, 1, @db, @limit, @missing);
 ELSE
     PRINT CONCAT(@db, N' in ', @ag, N': ', IIF(@only = N'*', N'every secondary', @only), N' caught up, after ',
                  FORMAT(DATEDIFF(millisecond, @t0, SYSDATETIME()) / 1000.0, N'0.0'), N' s');
 SQL
+}
+# Seeds again the copy of a database on a secondary whose automatic seeding stopped: drops the
+# copy when it is in RESTORING outside the group, then grants the group CREATE ANY DATABASE
+# again, which starts a new seeding. Leaves alone a copy that is joined, or whose seeding is
+# going on. Prints one line. Called by wait_ag_database.
+# Usage:  reseed_copy hadrlab2 AgPacha m04_registration
+reseed_copy() {
+    local c=$1 ag=$2 db=$3
+    sql "$c" -h -1 -v AG="$ag" DB="$db" <<'SQL'
+SET NOCOUNT ON;
+DECLARE @db sysname = N'$(DB)';
+IF EXISTS (SELECT * FROM sys.dm_hadr_database_replica_states WHERE database_id = DB_ID(@db) AND is_local = 1)
+    PRINT CONCAT(N'reseed_copy: ', @db, N' on ', @@SERVERNAME, N' is joined, left alone');
+ELSE IF EXISTS (SELECT * FROM sys.dm_hadr_automatic_seeding AS s
+                JOIN sys.availability_databases_cluster AS adc ON adc.group_database_id = s.ag_db_id
+                WHERE adc.database_name = @db AND s.current_state NOT IN (N'COMPLETED', N'FAILED'))
+    PRINT CONCAT(N'reseed_copy: ', @db, N' on ', @@SERVERNAME, N' is being seeded, left alone');
+ELSE
+BEGIN
+    IF DB_ID(@db) IS NOT NULL AND DATABASEPROPERTYEX(@db, 'Status') <> N'RESTORING'
+        THROW 50000, N'reseed_copy: the copy is neither joined nor in RESTORING', 1;
+    IF DB_ID(@db) IS NOT NULL
+        EXEC (N'DROP DATABASE ' + QUOTENAME(@db));
+    ALTER AVAILABILITY GROUP $(AG) GRANT CREATE ANY DATABASE;
+    PRINT CONCAT(N'reseed_copy: ', @db, N' on ', @@SERVERNAME, N': copy dropped, seeding started again');
+END;
+SQL
+}
+# Prints what the instances say of the automatic seedings of a database: on the primary given,
+# the last seedings of it per replica (sys.dm_hadr_automatic_seeding), then, on each instance,
+# the physical seedings (sys.dm_hadr_physical_seeding_stats) with their failure. Added after
+# the CI met a seeding that failed with "SQL Error" and no error code.
+# Usage:  seeding_report hadrlab1 m04_registration
+seeding_report() {
+    local c=$1 db=$2 n
+    echo "== seedings of $db, read on $c"
+    sql "$c" -h -1 -s '|' -v DB="$db" <<'SQL' || true
+SET NOCOUNT ON;
+SELECT TOP (6) CONVERT(varchar(23), s.start_time, 121), ar.replica_server_name, s.current_state,
+       s.failure_state_desc, s.error_code, s.number_of_attempts
+FROM sys.dm_hadr_automatic_seeding AS s
+JOIN sys.availability_databases_cluster AS adc ON adc.group_database_id = s.ag_db_id
+JOIN sys.availability_replicas AS ar ON ar.replica_id = s.ag_remote_replica_id
+WHERE adc.database_name = N'$(DB)'
+ORDER BY s.start_time DESC;
+SQL
+    for n in $nodes; do
+        sql "$n" -h -1 -s '|' -v DB="$db" <<'SQL' || true
+SET NOCOUNT ON;
+SELECT TOP (3) @@SERVERNAME, role_desc, internal_state_desc, CONVERT(varchar(19), start_time_utc, 120),
+       transferred_size_bytes / 1048576, failure_code, failure_message
+FROM sys.dm_hadr_physical_seeding_stats
+WHERE local_database_name = N'$(DB)'
+ORDER BY start_time_utc DESC;
+SQL
+    done
 }
 # Opens one connection from inside the lab network, with the sqlcmd of a container (the names
 # hadrlab1 to hadrlab3, and a listener, only resolve there: a client on the host would be
