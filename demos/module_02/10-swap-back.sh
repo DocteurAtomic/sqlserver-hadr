@@ -16,6 +16,40 @@ batches='SET NOCOUNT ON; SELECT OrderReference, COUNT(*) FROM m02_registration.E
          WHERE OrderReference LIKE '"'"'m02 %'"'"' AND OrderReference NOT LIKE '"'"'m02 delay%'"'"'
          GROUP BY OrderReference ORDER BY 1;'
 a=$(mktemp); b=$(mktemp); trap 'rm -f "$a" "$b"' EXIT
+# Shown when the restore job of hadrlab2 still fails once its own log backups are removed (CI
+# run 42314716051, cause not read): its last errors, its job history, the files of its copy
+# folder, and which instance took each log backup of the shared folder, with its LSN range.
+restore_state() {
+    echo
+    echo "The restore job of hadrlab2 failed again. Its last errors:"
+    sql hadrlab2 -h -1 -s '|' <<'SQL' || true
+SET NOCOUNT ON;
+SELECT TOP 8 CONVERT(varchar(12), log_time, 114),
+       LEFT(REPLACE(message, N'/var/opt/mssql/logship-copy/m02_registration', N'<copy>'), 300)
+FROM msdb.dbo.log_shipping_monitor_error_detail
+WHERE agent_type = 2 ORDER BY log_time DESC, sequence_number DESC;
+SELECT TOP 4 CONCAT(h.run_date, N' ', h.run_time, N' step ', h.step_id, N': ', LEFT(h.message, 400))
+FROM msdb.dbo.sysjobhistory AS h JOIN msdb.dbo.sysjobs AS j ON j.job_id = h.job_id
+WHERE j.name = N'LSRestore_m02_registration' ORDER BY h.instance_id DESC;
+SELECT CONCAT(N'last restored file: ', last_restored_file, N', last copied file: ', last_copied_file)
+FROM msdb.dbo.log_shipping_monitor_secondary WHERE secondary_database = N'm02_registration';
+SQL
+    echo "The copy folder of hadrlab2:"
+    $engine exec hadrlab2 ls -l /var/opt/mssql/logship-copy/m02_registration || true
+    echo "The log backups of the shared folder, by instance:"
+    for n in hadrlab1 hadrlab2; do
+        sql $n -h -1 -s '|' <<'SQL' || true
+SET NOCOUNT ON;
+SELECT TOP 8 b.server_name, CONVERT(varchar(19), b.backup_finish_date, 120),
+       REVERSE(LEFT(REVERSE(f.physical_device_name), CHARINDEX(N'/', REVERSE(f.physical_device_name)) - 1)),
+       b.first_lsn, b.last_lsn
+FROM msdb.dbo.backupset AS b
+JOIN msdb.dbo.backupmediafamily AS f ON f.media_set_id = b.media_set_id
+WHERE b.database_name = N'm02_registration' AND b.type = 'L' AND b.server_name = @@SERVERNAME
+ORDER BY b.backup_finish_date DESC;
+SQL
+    done
+}
 start=$(date +%s.%N)
 disable_job hadrlab2 LSBackup_m02_registration
 run_job hadrlab1 LSCopy_m02_registration
@@ -81,7 +115,10 @@ SQL
         echo "  $f"
         $engine exec hadrlab2 rm -f "/var/opt/mssql/logship-copy/m02_registration/$f"
     done
-    run_job hadrlab2 LSRestore_m02_registration
+    if ! run_job hadrlab2 LSRestore_m02_registration; then
+        restore_state
+        exit 1
+    fi
     repaired=" after removing from the copy folder of hadrlab2 the $(echo $own | wc -w) log backup(s) it had taken itself"
 fi
 count="SET NOCOUNT ON; SELECT CONCAT(@@SERVERNAME, ': ', CAST(DATABASEPROPERTYEX(N'm02_registration', 'Status') AS nvarchar(20)),

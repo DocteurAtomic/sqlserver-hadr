@@ -32,7 +32,7 @@ run() {  # one script; prints one line, and the end of its output when it fails
             bash "$f" > "$log" 2>&1 || rc=$? ;;
         *) return ;;
     esac
-    if [ $rc -ne 0 ]; then echo "FAIL $f (exit $rc)"; tail -20 "$log"; exit 1; fi
+    if [ $rc -ne 0 ]; then echo "FAIL $f (exit $rc)"; tail -80 "$log"; exit 1; fi
 }
 
 check() {  # check.sh, and the exit code it must return
