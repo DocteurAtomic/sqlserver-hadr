@@ -51,7 +51,7 @@ inserts
 copy
 echo
 echo "== hadrlab2: SET HADR RESUME"
-sql hadrlab2 -Q "ALTER DATABASE m04_registration SET HADR RESUME;"
+resume_copy hadrlab2 m04_registration
 sql hadrlab1 -h -1 <<'SQL'
 SET NOCOUNT ON;
 DECLARE @t0 datetime2(3) = SYSDATETIME();

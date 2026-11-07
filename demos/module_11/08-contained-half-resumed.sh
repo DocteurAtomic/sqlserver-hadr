@@ -59,7 +59,8 @@ SELECT CONCAT(N'  Agent log of hadrlab2, last minute: ', COUNT(*), N' lines such
 FROM @l WHERE logdate >= DATEADD(minute, -1, GETDATE());"
 echo
 echo "== hadrlab1: the two databases of the group resumed; hadrlab2: the setting back to 0"
-sql hadrlab1 -Q "ALTER DATABASE m11_contained_master SET HADR RESUME; ALTER DATABASE m11_contained_msdb SET HADR RESUME;"
+resume_copy hadrlab1 m11_contained_master
+resume_copy hadrlab1 m11_contained_msdb
 for i in $(seq 1 60); do
     late=$(sql hadrlab2 -h -1 -Q "SET NOCOUNT ON; SELECT COUNT(*) FROM sys.dm_hadr_database_replica_states AS d
         JOIN sys.availability_groups AS g ON g.group_id = d.group_id

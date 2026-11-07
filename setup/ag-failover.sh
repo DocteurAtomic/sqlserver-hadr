@@ -137,7 +137,7 @@ SQL
         s=$(sql $n -h -1 -Q "SET NOCOUNT ON; SELECT is_suspended FROM sys.dm_hadr_database_replica_states
             WHERE is_local = 1 AND database_id = DB_ID(N'$db');" | tr -d '[:space:]')
         if [ "$s" = 1 ]; then
-            sql $n -Q "ALTER DATABASE [$db] SET HADR RESUME;"
+            resume_copy $n "$db"
             echo "$n: $db suspended by the failover, SET HADR RESUME (+$(elapsed) s)"
         elif [ $i -ge 15 ] && [[ " $forced " != *" $l "* ]]; then
             # Still late after 15 seconds without being suspended on its replica: the copy the

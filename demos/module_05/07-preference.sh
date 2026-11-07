@@ -66,7 +66,7 @@ SELECT CONCAT(N'  fn_hadr_backup_is_preferred_replica: ', sys.fn_hadr_backup_is_
 BACKUP LOG m05_reports TO DISK = N'/var/opt/mssql/share/m05/m05_reports-byhand-hadrlab3.trn' WITH INIT, COMPRESSION;" 2>&1 | grep -v '^Processed'
 echo
 echo "== back to the defaults"
-sql hadrlab2 -Q "ALTER DATABASE m05_reports SET HADR RESUME;"
+resume_copy hadrlab2 m05_reports
 sql hadrlab1 -Q "ALTER AVAILABILITY GROUP AgPacha MODIFY REPLICA ON N'hadrlab3' WITH (BACKUP_PRIORITY = 50);"
 wait_ag_database hadrlab1 AgPacha m05_reports 60 hadrlab2
 settings

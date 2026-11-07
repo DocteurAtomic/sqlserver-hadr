@@ -97,7 +97,7 @@ count hadrlab3
 try hadrlab3 "INSERT m06_registration.dbo.Registration (label, email) VALUES ('written on hadrlab3', 'new@pachadata.example'); SELECT N'INSERT on hadrlab3 accepted';"
 echo
 echo "== hadrlab3: SET HADR RESUME on the new primary"
-sql hadrlab3 -Q "ALTER DATABASE m06_registration SET HADR RESUME;"
+resume_copy hadrlab3 m06_registration
 mine hadrlab3
 echo
 echo "== hadrlab2, the synchronous replica, still running"
@@ -118,7 +118,7 @@ done
 echo "$s"
 count hadrlab2
 case $s in *"suspended 1"*) ;; *) echo "hadrlab2 is not suspended a minute after SET (ROLE = SECONDARY)" >&2; exit 1 ;; esac
-sql hadrlab2 -Q "ALTER DATABASE m06_registration SET HADR RESUME;"
+resume_copy hadrlab2 m06_registration
 # Read on the new primary until hadrlab2 is connected and synchronizing, at most a minute.
 for i in $(seq 1 60); do
     s=$(sql hadrlab3 -h -1 -Q "SET NOCOUNT ON; SELECT d.synchronization_state_desc FROM sys.dm_hadr_database_replica_states AS d

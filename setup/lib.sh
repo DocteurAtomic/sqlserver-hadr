@@ -51,6 +51,39 @@ SQL
     echo "$out" >&2
     return 1
 }
+# Resumes the data movement of a copy, on the instance given, and checks it. A RESUME can
+# restart the database on that instance, and the restart kills the batches running in it,
+# the RESUME's own included: in CI run 42321181979 (exercise of module 8, hadrlab3), the error
+# log says "data movement ... has been resumed", then "Number of killed batches ... 1", while
+# sqlcmd -b returned Msg 41166 and "the session is in the kill state". That error alone is
+# then not taken as a failure, the way run_job takes the 22022 of sp_start_job: the copy must
+# be seen not suspended on that instance within 30 seconds, or the function exits with 1 and
+# prints its state. Any other error exits with 1 at once.
+# Usage:  resume_copy hadrlab2 m04_registration
+resume_copy() {
+    local c=$1 db=$2 out i s
+    if out=$(sql "$c" -Q "ALTER DATABASE [$db] SET HADR RESUME;" 2>&1); then
+        [ -z "$out" ] || echo "$out"
+        return 0
+    fi
+    case $out in
+        *"Msg 41166,"*|*"in the kill state"*) ;;
+        *) echo "$out" >&2; return 1 ;;
+    esac
+    echo "resume_copy: $c, $db: the RESUME's session was killed (Msg 41166), checking the copy" >&2
+    for i in $(seq 1 30); do
+        s=$(sql "$c" -h -1 -Q "SET NOCOUNT ON; SELECT CONCAT(N'suspended ', is_suspended, N' ', suspend_reason_desc)
+            FROM sys.dm_hadr_database_replica_states WHERE is_local = 1 AND database_id = DB_ID(N'$db');" 2>&1 \
+            | tr -s ' \r\n' ' ' | sed 's/ *$//') || true
+        case $s in
+            "suspended 0"*) echo "resume_copy: $c, $db: resumed" >&2; return 0 ;;
+        esac
+        sleep 1
+    done
+    echo "$out" >&2
+    echo "resume_copy: $c, $db: still not resumed 30 seconds after the RESUME (${s:-no local state})" >&2
+    return 1
+}
 # Runs a SQL Server Agent job and waits for it to finish, at most a number of seconds (120 by
 # default); exits with 1 when the job fails or does not finish in time. When the job is already
 # running, it waits for that run to finish first; when the schedule starts it at the same

@@ -14,7 +14,7 @@ cd "$(dirname "$0")/../../.."
 . setup/lib.sh
 for n in hadrlab2 hadrlab3; do
     $engine exec -u 0 $n chown mssql /var/opt/mssql/data/ex_archive
-    sql $n -h -1 -Q "SET NOCOUNT ON; ALTER DATABASE ex_repair SET HADR RESUME;"
+    resume_copy $n ex_repair
 done
 wait_ag_database hadrlab1 AgRepair ex_repair 120
 cat > exercises/module_08/report.md <<'REPORT'

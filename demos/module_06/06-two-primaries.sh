@@ -97,7 +97,7 @@ echo "$s"
 case $s in *"suspended 1"*) ;; *) echo "hadrlab1 is not suspended a minute after SET (ROLE = SECONDARY)" >&2; exit 1 ;; esac
 count hadrlab1
 echo "== hadrlab1: SET HADR RESUME"
-sql hadrlab1 -Q "ALTER DATABASE m06_registration SET HADR RESUME;"
+resume_copy hadrlab1 m06_registration
 for i in $(seq 1 60); do
     s=$(sync_on_hadrlab3)
     case $s in SYNCHRONIZING|SYNCHRONIZED) break ;; esac

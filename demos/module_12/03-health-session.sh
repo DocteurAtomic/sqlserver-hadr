@@ -52,5 +52,5 @@ echo
 echo "== hadrlab2: SET HADR SUSPEND, then SET HADR RESUME ($(date -u +%T) UTC)"
 sql hadrlab2 -Q "ALTER DATABASE m12_registration SET HADR SUSPEND;"
 sleep 2
-sql hadrlab2 -Q "ALTER DATABASE m12_registration SET HADR RESUME;"
+resume_copy hadrlab2 m12_registration
 wait_ag_database hadrlab1 AgPacha m12_registration 60 hadrlab2 | sed 's/^/  /'

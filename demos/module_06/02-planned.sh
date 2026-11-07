@@ -79,7 +79,7 @@ for n in hadrlab1 hadrlab3; do
     done
     echo "$s (+$(elapsed) s)"
     case $s in *"suspended 1"*) ;; *) echo "$n is not suspended a minute after SET (ROLE = SECONDARY)" >&2; exit 1 ;; esac
-    sql $n -Q "ALTER DATABASE m06_registration SET HADR RESUME;"
+    resume_copy $n m06_registration
 done
 for i in $(seq 1 60); do
     late=$(sql hadrlab2 -h -1 -Q "SET NOCOUNT ON; SELECT COUNT(*) FROM sys.dm_hadr_database_replica_states AS d

@@ -124,7 +124,7 @@ echo "== 4. the repair: hadrlab2 first"
 $engine exec hadrlab2 rm /dev/shm/m12/old-export.dat
 echo "  hadrlab2: old-export.dat deleted"
 shm
-sql hadrlab2 -h -1 -Q "SET NOCOUNT ON; ALTER DATABASE m12_disk SET HADR RESUME;"
+resume_copy hadrlab2 m12_disk
 echo "  hadrlab2: ALTER DATABASE m12_disk SET HADR RESUME"
 wait_ag_database hadrlab1 m12_disk m12_disk 120 | sed 's/^/  /'
 sql hadrlab2 -h -1 -Q "SET NOCOUNT ON; SELECT CONCAT(N'  hadrlab2: m12_disk ', d.state_desc COLLATE DATABASE_DEFAULT, N', ', s.synchronization_state_desc)

@@ -56,7 +56,7 @@ try "SELECT CONCAT(N'PachadataTraining, same group, no secondary suspended: ', C
      FROM PachadataTraining.Course.Category;"
 echo
 echo "== hadrlab2: SET HADR RESUME"
-sql hadrlab2 -Q "ALTER DATABASE m04_registration SET HADR RESUME;"
+resume_copy hadrlab2 m04_registration
 wait_synchronized
 echo
 echo "== hadrlab1: the rows, then INSERT again"

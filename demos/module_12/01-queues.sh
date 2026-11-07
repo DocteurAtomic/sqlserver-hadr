@@ -58,7 +58,7 @@ SQL
 header; health
 echo
 echo "== 3. hadrlab3: SET HADR RESUME"
-sql hadrlab3 -Q "ALTER DATABASE m12_registration SET HADR RESUME;"
+resume_copy hadrlab3 m12_registration
 header "     "
 # SYNCHRONIZING comes back at once; the redo queue and the loss estimate empty after.
 for i in $(seq 0 30); do
